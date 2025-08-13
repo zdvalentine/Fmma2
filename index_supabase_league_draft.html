@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>FMMA — League + Draft (Supabase)</title>
+<meta name="theme-color" content="#0b2431"/>
+<style>
+  :root{ --bg:#0b2431; --card:#0f3142; --gold:#C8A86A; --teal:#0fb5b3; --text:#e8eef2; --muted:#a8b3bd; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial}
+  .app{max-width:900px;margin:0 auto;padding:16px}
+  h2{margin:12px 0}
+  .card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;margin-top:12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{min-height:40px;border:1px solid var(--gold);color:var(--gold);background:transparent;border-radius:10px;padding:8px 12px;font-weight:700}
+  .btn.fill{background:var(--teal);color:#062a33;border-color:var(--teal)}
+  .input{flex:1;min-width:220px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px 12px;color:var(--text)}
+  .muted{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{text-align:left;padding:8px 0;border-top:1px solid rgba(255,255,255,.08)}
+  .grid{display:grid;gap:8px}
+  @media(min-width:720px){ .grid.fighters{grid-template-columns:repeat(2,1fr)} }
+  .fighter{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .pill{border:1px solid var(--gold);border-radius:999px;padding:4px 10px;color:var(--gold);font-weight:600}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .tabbtn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);color:var(--text);background:transparent}
+  .tabbtn.active{border-color:var(--teal);color:var(--teal)}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .wc{border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 10px}
+  .wc.active{border-color:var(--gold);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="app">
+  <h2>FMMA — League + Draft</h2>
+
+  <div class="card">
+    <b>Project Config</b>
+    <div class="row" style="margin-top:8px">
+      <input id="url" class="input" placeholder="SUPABASE_URL (https://xxxx.supabase.co)"/>
+      <input id="key" class="input" placeholder="SUPABASE_ANON_KEY"/>
+      <button class="btn fill" onclick="saveCfg()">Save</button>
+    </div>
+    <div class="muted" style="margin-top:6px">Paste your Supabase URL + anon key. Stored locally on this device.</div>
+  </div>
+
+  <div class="card">
+    <b>Auth</b>
+    <div class="row" style="margin-top:8px">
+      <input id="email" class="input" placeholder="Email"/>
+      <input id="password" class="input" type="password" placeholder="Password"/>
+      <button class="btn" onclick="signUp()">Sign Up</button>
+      <button class="btn" onclick="signIn()">Sign In</button>
+      <button class="btn" onclick="signOut()">Sign Out</button>
+    </div>
+    <div id="who" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tabbtn active" data-tab="leagues" onclick="showTab('leagues')">Leagues</button>
+    <button class="tabbtn" data-tab="teams" onclick="showTab('teams')">Teams</button>
+    <button class="tabbtn" data-tab="draft" onclick="showTab('draft')">Draft</button>
+    <button class="tabbtn" data-tab="roster" onclick="showTab('roster')">My Roster</button>
+    <button class="tabbtn" data-tab="events" onclick="showTab('events')">Events & Bouts</button>
+    <button class="tabbtn" data-tab="scoring" onclick="showTab('scoring')">Results & Scoring</button>
+    <button class="tabbtn" data-tab="standings" onclick="showTab('standings')">Standings</button>
+  </div>
+
+  <!-- Leagues -->
+  <div class="card" id="tab-leagues">
+    <b>Create or View Leagues</b>
+    <div class="row" style="margin-top:8px">
+      <input id="leagueName" class="input" placeholder="League name"/>
+      <button class="btn fill" onclick="createLeague()">Create league</button>
+      <button class="btn" onclick="listLeagues()">Refresh</button>
+    </div>
+    <div id="leagues"></div>
+  </div>
+
+  <!-- Teams -->
+  <div class="card" id="tab-teams" style="display:none">
+    <b>Create a Team</b>
+    <div class="row" style="margin-top:8px">
+      <input id="teamLeagueId" class="input" placeholder="League ID"/>
+      <input id="teamName" class="input" placeholder="Team name"/>
+      <button class="btn fill" onclick="createTeam()">Create team</button>
+    </div>
+    <div class="muted" style="margin-top:6px">You can only create one team per league per account (enforced).</div>
+    <div id="teams"></div>
+  </div>
+
+  <!-- Draft -->
+  <div class="card" id="tab-draft" style="display:none">
+    <b>Draft — Available Fighters</b>
+    <div class="row" style="margin-top:8px">
+      <input id="dLeague" class="input" placeholder="League ID"/>
+      <input id="dTeam" class="input" placeholder="Your Team ID"/>
+      <input id="dQuery" class="input" placeholder="Search (name or wc code)"/>
+      <button class="btn" onclick="loadAvailable()">Load</button>
+    </div>
+    <div class="filters" id="wcFilters"></div>
+    <div class="grid fighters" id="avail"></div>
+  </div>
+
+  <!-- Roster -->
+  <div class="card" id="tab-roster" style="display:none">
+    <b>My Roster</b>
+    <div class="row" style="margin-top:8px">
+      <input id="rLeague" class="input" placeholder="League ID"/>
+      <input id="rTeam" class="input" placeholder="Your Team ID"/>
+      <button class="btn" onclick="loadRoster()">Load</button>
+    </div>
+    <div id="roster"></div>
+  </div>
+
+  <!-- Events & Bouts -->
+  <div class="card" id="tab-events" style="display:none">
+    <b>Events & Bouts</b>
+    <div class="row" style="margin-top:8px">
+      <input id="evName" class="input" placeholder="Event name (e.g., UFC 319)"/>
+      <button class="btn fill" onclick="createEvent()">Create event</button>
+      <button class="btn" onclick="listEvents()">List events</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="evId" class="input" placeholder="Event ID"/>
+      <input id="aId" class="input" placeholder="fighter_a id"/>
+      <input id="bId" class="input" placeholder="fighter_b id"/>
+      <button class="btn" onclick="createBout()">Add bout</button>
+      <button class="btn" onclick="listBouts()">List bouts (by event)</button>
+    </div>
+    <div id="events"></div>
+    <div id="bouts"></div>
+  </div>
+
+  <!-- Results & Scoring -->
+  <div class="card" id="tab-scoring" style="display:none">
+    <b>Results & Scoring</b>
+    <div class="row" style="margin-top:8px">
+      <input id="rsBout" class="input" placeholder="Bout ID"/>
+      <input id="rsWinner" class="input" placeholder="Winner fighter id"/>
+      <input id="rsMethod" class="input" placeholder="KO_TKO | SUB | DEC"/>
+      <button class="btn" onclick="setResult()">Set result</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="scLeague" class="input" placeholder="League ID"/>
+      <button class="btn fill" onclick="applyScoring()">Apply scoring</button>
+    </div>
+  </div>
+
+  <!-- Standings -->
+  <div class="card" id="tab-standings" style="display:none">
+    <b>Standings</b>
+    <div class="row" style="margin-top:8px">
+      <input id="stLeague" class="input" placeholder="League ID"/>
+      <button class="btn" onclick="showStandings()">Show standings</button>
+    </div>
+    <div id="standings"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const $ = (id)=> document.getElementById(id);
+const LS = { get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(_){return d}}, set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)) };
+let supa = null;
+let wcActive = 'ALL';
+
+function saveCfg(){ const url=$('url').value.trim(), key=$('key').value.trim(); LS.set('cfg',{url,key}); alert('Saved'); init(); }
+function init(){
+  const cfg=LS.get('cfg',null); if(!cfg){ $('who').textContent='Paste Supabase URL + anon key above.'; return; }
+  $('url').value=cfg.url; $('key').value=cfg.key; supa = supabase.createClient(cfg.url, cfg.key);
+  supa.auth.getUser().then(({data})=>{ $('who').textContent = data?.user ? 'Signed in: '+data.user.email : 'Not signed in'; });
+}
+
+function showTab(name){
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  ['leagues','teams','draft','roster','events','scoring','standings'].forEach(t=>{
+    $('tab-'+t).style.display = (t===name)?'block':'none';
+  });
+}
+
+async function signUp(){ const {error} = await supa.auth.signUp({email:$('email').value, password:$('password').value}); if(error) alert(error.message); else alert('Check email'); init(); }
+async function signIn(){ const {error} = await supa.auth.signInWithPassword({email:$('email').value, password:$('password').value}); if(error) alert(error.message); else alert('Signed in'); init(); }
+async function signOut(){ await supa.auth.signOut(); alert('Signed out'); init(); }
+
+// Leagues
+async function createLeague(){
+  const { data: user } = await supa.auth.getUser(); if(!user?.user) return alert('Sign in first');
+  const name = $('leagueName').value.trim();
+  const { data, error } = await supa.from('leagues').insert({ name, created_by: user.user.id }).select();
+  if(error) return alert(error.message);
+  await supa.from('league_members').insert({ league_id: data[0].id, user_id: user.user.id, role: 'owner' });
+  listLeagues();
+}
+async function listLeagues(){
+  const { data: user } = await supa.auth.getUser(); if(!user?.user) return;
+  const { data, error } = await supa.from('league_members').select('league_id, leagues(name, id)').eq('user_id', user.user.id);
+  if(error) return alert(error.message);
+  $('leagues').innerHTML = '<table><tr><th>Name</th><th>ID</th></tr>' + (data||[]).map(x=>`<tr><td>${x.leagues.name}</td><td>${x.leagues.id}</td></tr>`).join('') + '</table>';
+}
+
+// Teams
+async function createTeam(){
+  const { data: user } = await supa.auth.getUser(); if(!user?.user) return alert('Sign in first');
+  const league_id = $('teamLeagueId').value.trim();
+  const name = $('teamName').value.trim();
+  const { data, error } = await supa.from('teams').insert({ league_id, user_id: user.user.id, name }).select();
+  if(error) return alert(error.message);
+  alert('Team created: '+data[0].id);
+}
+
+// Draft
+function renderWCFilters(codes){
+  const cont=$('wcFilters'); cont.innerHTML='';
+  ['ALL',...codes].forEach(code=>{
+    const b=document.createElement('button'); b.className='wc'+(wcActive===code?' active':''); b.textContent=code;
+    b.onclick=()=>{ wcActive=code; loadAvailable(); }; cont.append(b);
+  });
+}
+async function loadAvailable(){
+  const league_id=$('dLeague').value.trim(); const team_id=$('dTeam').value.trim(); if(!league_id||!team_id) return alert('Enter league and team IDs');
+  const q=$('dQuery').value.trim().toLowerCase();
+
+  const { data: roster, error: er1 } = await supa.from('rosters').select('fighter_id').eq('league_id', league_id);
+  if(er1) return alert(er1.message);
+  const owned=new Set((roster||[]).map(r=>r.fighter_id));
+
+  const { data: fighters, error: er2 } = await supa.from('fighters').select('*').order('name');
+  if(er2) return alert(er2.message);
+
+  const codes=[...new Set((fighters||[]).map(f=>f.weight_class))].sort();
+  renderWCFilters(codes);
+
+  const list=(fighters||[]).filter(f=>!owned.has(f.id))
+    .filter(f=> wcActive==='ALL' || f.weight_class===wcActive )
+    .filter(f=> !q || f.name.toLowerCase().includes(q) || (f.weight_class||'').toLowerCase().includes(q) );
+
+  const wrap=$('avail'); wrap.innerHTML='';
+  list.forEach(f=>{
+    const row=document.createElement('div'); row.className='fighter';
+    const left=document.createElement('div'); left.innerHTML = `<div style="font-weight:700">${f.name}</div><div class="muted" style="font-size:.9rem">${f.weight_class} • ${f.record||''}</div>`;
+    const btn=document.createElement('button'); btn.className='btn'; btn.textContent='Draft'; btn.onclick=()=>draft(league_id, team_id, f.id);
+    row.append(left, btn); wrap.append(row);
+  });
+}
+async function draft(league_id, team_id, fighter_id){
+  const { error } = await supa.from('rosters').insert({ league_id, team_id, fighter_id });
+  if(error) return alert(error.message);
+  alert('Drafted');
+  loadAvailable();
+}
+
+// Roster
+async function loadRoster(){
+  const league_id=$('rLeague').value.trim(); const team_id=$('rTeam').value.trim(); if(!league_id||!team_id) return alert('Enter IDs');
+  const { data, error } = await supa.from('rosters').select('fighter_id, fighters(name, weight_class, record)').eq('league_id', league_id).eq('team_id', team_id).order('added_at',{ascending:true});
+  if(error) return alert(error.message);
+  $('roster').innerHTML = '<table><tr><th>Fighter</th><th>WC</th><th>Rec</th></tr>' + (data||[]).map(r=>`<tr><td>${r.fighters.name}</td><td>${r.fighters.weight_class}</td><td>${r.fighters.record||''}</td></tr>`).join('') + '</table>';
+}
+
+// Events & Bouts
+async function createEvent(){
+  const name=$('evName').value.trim(); const { data, error } = await supa.from('events').insert({ name }).select();
+  if(error) return alert(error.message); alert('Event: '+data[0].id); listEvents();
+}
+async function listEvents(){
+  const { data, error } = await supa.from('events').select('*').order('created_at',{ascending:false}).limit(10);
+  if(error) return alert(error.message);
+  $('events').innerHTML = '<table><tr><th>ID</th><th>Name</th><th>Starts</th></tr>' + (data||[]).map(e=>`<tr><td>${e.id}</td><td>${e.name}</td><td>${e.starts_at||''}</td></tr>`).join('') + '</table>';
+}
+async function createBout(){
+  const payload = { event_id:$('evId').value.trim(), fighter_a_id:$('aId').value.trim(), fighter_b_id:$('bId').value.trim() };
+  const { error } = await supa.from('bouts').insert(payload); if(error) return alert(error.message); alert('Bout created'); listBouts();
+}
+async function listBouts(){
+  const event_id=$('evId').value.trim(); if(!event_id) return alert('Enter Event ID');
+  const { data, error } = await supa.from('bouts').select('id, fighter_a_id, fighter_b_id').eq('event_id', event_id);
+  if(error) return alert(error.message);
+  $('bouts').innerHTML = '<table><tr><th>ID</th><th>A</th><th>B</th></tr>' + (data||[]).map(b=>`<tr><td>${b.id}</td><td>${b.fighter_a_id}</td><td>${b.fighter_b_id}</td></tr>`).join('') + '</table>';
+}
+
+// Results & Scoring
+async function setResult(){
+  const bout_id=$('rsBout').value.trim(), winner_id=$('rsWinner').value.trim(), method=$('rsMethod').value.trim();
+  const { error } = await supa.from('bout_results').upsert({ bout_id, winner_id, method });
+  if(error) return alert(error.message); alert('Result saved');
+}
+async function applyScoring(){
+  const league_id = $('scLeague').value.trim();
+  const { error } = await supa.rpc('apply_scoring', { p_league: league_id });
+  if(error) return alert(error.message); alert('Scored');
+}
+
+// Standings
+async function showStandings(){
+  const league_id = $('stLeague').value.trim();
+  const { data, error } = await supa.from('v_team_points').select('*').eq('league_id', league_id);
+  if(error) return alert(error.message);
+  $('standings').innerHTML = '<table><tr><th>Team</th><th>Points</th></tr>' + (data||[]).map(x=>`<tr><td>${x.team_id}</td><td>${x.total_points??0}</td></tr>`).join('') + '</table>';
+}
+
+init();
+listLeagues();
+</script>
+</body>
+</html>
